@@ -1,0 +1,14 @@
+[dependencies]
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+thiserror = "1.0"
+parking_lot = "0.12"               # ultra-fast RwLock for shared current_usage tracking
+dashmap = "6.0"                     # shardable concurrent HashMap (best-in-class)
+once_cell = "1.19"                  # lazy static init
+tracing = "0.1"                     # structured logging for audit/.donutloop.aln
+# Future-proof next-gen crates (already best-in-class 2026)
+tokio = { version = "1.38", features = ["rt-multi-thread", "macros"] } # async guard support
+# (RohModel, ViabilityKernel, Tsafe types are re-exported from your existing crates)
+rohmodel = { path = "../rohmodel" }
+tsafe = { path = "../tsafe" }
+vkernel = { path = "../vkernel" }
