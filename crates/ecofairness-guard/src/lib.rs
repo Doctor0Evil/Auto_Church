@@ -1,6 +1,10 @@
 use serde::{Deserialize, Serialize};
 use std::{collections::HashMap, fs, path::Path};
 
+mod kernel;
+
+pub use kernel::{EquityBounds, GraceEquityKernel, RouteEnvelope};
+
 /// High-level error type for guard violations or configuration problems.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct GuardError {
@@ -40,33 +44,6 @@ pub struct EquityClass {
     pub name: String,
 }
 
-/// Per-equity-class floor & ceiling.
-/// This is the heart of the GraceEquityKernel: no class may be starved below its
-/// guaranteed floor, and no class may exceed its share ceiling.
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct EquityBounds {
-    /// Minimum fraction of available compute+energy that this class must receive
-    /// under scarcity, 0.0–1.0 (floors should sum ≤ 1.0).
-    pub min_share: f32,
-    /// Maximum fraction of available compute+energy this class may consume
-    /// before being throttled, 0.0–1.0.
-    pub max_share: f32,
-}
-
-/// The **GraceEquityKernel** encodes systemic fairness for Auto_Church:
-/// - no equity class is starved (min_share),
-/// - no class can dominate (max_share),
-/// - these bounds are treated as Tsafe viability constraints, not soft preferences.
-///
-/// This shard is assumed to be serialized as `.eco-fairness.aln` (JSON-compatible).
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct GraceEquityKernel {
-    /// Per-class bounds keyed by class name.
-    pub bounds: HashMap<String, EquityBounds>,
-    /// Optional label to tie this kernel to a manifest / policy layout.
-    pub policy_id: String,
-}
-
 /// Snapshot of current resource usage, e.g. computed by the scheduler and passed
 /// into the guard on every high-risk action.
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -81,13 +58,13 @@ pub struct ResourceUsageSnapshot {
     pub current_cumulative_energy: f32,
     /// Current compute utilization (0.0–1.0).
     pub current_compute_fraction: f32,
-    /// Per-equity-class current share (0.0–1.0, typically relative to total_compute_capacity
-    /// or total_power_budget).
+    /// Per-equity-class current share (0.0–1.0, typically relative to
+    /// total_compute_capacity or total_power_budget).
     pub class_shares: HashMap<String, f32>,
 }
 
 /// Minimal projection of the Tsafe Cortex Gate XRAction; this should match
-/// the struct in `tsafe-cortex-gate` so the guard can be imported and used
+/// the struct in `tsafecortexgate` so the guard can be imported and used
 /// without duplicating logic.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum XRActionKind {
@@ -118,7 +95,7 @@ pub struct XRAction {
 
 /// Configuration shard for EcoFairnessGuard.
 /// In practice you would load RohModel from `.rohmodel.aln`,
-/// TsafeEcoEnvelope from `.tsafe.aln`/`.vkernel.aln`,
+/// TsafeEcoEnvelope from `.tsafe-eco-envelopes.json` / `.vkernel.aln`,
 /// and GraceEquityKernel from `.eco-fairness.aln`.
 #[derive(Debug, Clone)]
 pub struct EcoFairnessConfig {
@@ -233,8 +210,10 @@ impl EcoFairnessGuard {
             });
         }
 
-        let projected_compute = snapshot.current_compute_fraction
-            + (action.lifeforcecost / snapshot.total_compute_capacity.max(1.0));
+        // Simple normalized compute projection; in a real system this should be
+        // bound to concrete CPU/GPU metrics.
+        let denom = snapshot.total_compute_capacity.max(1.0);
+        let projected_compute = snapshot.current_compute_fraction + (action.lifeforcecost / denom);
         if projected_compute > env.max_compute_fraction {
             return Err(GuardError {
                 code: "ECO_COMPUTE_EXCEEDED".into(),
@@ -268,8 +247,7 @@ impl EcoFairnessGuard {
         let bounds = self
             .cfg
             .grace_equity
-            .bounds
-            .get(class_name)
+            .bounds_for_class(class_name)
             .ok_or_else(|| GuardError {
                 code: "ECO_UNKNOWN_EQUITY_CLASS".into(),
                 message: format!(
@@ -281,8 +259,8 @@ impl EcoFairnessGuard {
         let current_share = snapshot.class_shares.get(class_name).cloned().unwrap_or(0.0);
 
         // Compute a naive projected share: add normalized cost to this class's share.
-        let projected_share = current_share
-            + (action.lifeforcecost / snapshot.total_power_budget.max(1.0));
+        let denom = snapshot.total_power_budget.max(1.0);
+        let projected_share = current_share + (action.lifeforcecost / denom);
 
         // Upper bound: no class may exceed its max_share.
         if projected_share > bounds.max_share {
@@ -295,24 +273,16 @@ impl EcoFairnessGuard {
             });
         }
 
-        // Lower bound: we enforce fairness by rejecting actions from *other* classes
-        // if this class is already below min_share and the action would further
-        // skew distribution against them. In this simple function we just check
-        // the requesting class; a full scheduler would also check others before
-        // accepting competing actions.
-        if current_share < bounds.min_share {
-            // If this action *belongs* to an under-served class, we allow it;
-            // this is how GraceEquityKernel upweights marginalized classes.
-            // If you want hard enforcement, you can invert this logic.
-            // Here, we **do not** deny in that case.
-            // Leave a structural note in the error model for CI tests instead.
-        }
+        // Lower bound: pro-equity bias (do not deny under-served classes here).
+        // A more advanced scheduler can use `current_share < min_share` as a
+        // "priority uplift" signal.
 
         Ok(())
     }
 
     fn check_roh_ecofairness(&self, action: &XRAction) -> Result<(), GuardError> {
-        // Standard RoH ceiling & monotone safety: RoH must not increase and must remain ≤ 0.3.
+        // Standard RoH ceiling & monotone safety: RoH must not increase
+        // and must remain ≤ ceiling (typically 0.3).
         if action.rohafterestimate > self.cfg.roh_model.ceiling {
             return Err(GuardError {
                 code: "ROH_CEILING".into(),
@@ -334,9 +304,6 @@ impl EcoFairnessGuard {
         }
 
         // Optional: check eco-related RoH axes if present.
-        // For example, "eco_impact" and "compute_concentration" could be
-        // mapped from lifeforcecost and route-specific saturation.
-        // Here we just ensure those weights exist, so CI can bind them to real math.
         if !self.cfg.roh_model.weights.contains_key("eco_impact")
             || !self
                 .cfg
@@ -344,20 +311,12 @@ impl EcoFairnessGuard {
                 .weights
                 .contains_key("compute_concentration")
         {
-            // Not a hard error, but you can tighten this to Err if you want strictness.
-            // For now, we accept but signal that RoH eco axes are not properly wired.
+            // Not a hard error for now; CI can tighten this to a failure if required.
         }
 
         Ok(())
     }
-}
 
-// --- Optional helper: thin wrapper to integrate into Tsafe Cortex Gate ---
-
-/// Result type to mirror other guardian crates (neurorights, RoH, eco, etc.).
-pub type EcoFairnessResult = Result<(), GuardError>;
-
-impl EcoFairnessGuard {
     /// Convenience layer for Tsafe Cortex Gate, so you can call:
     ///
     /// `eco_guard.check_for_gate(&req.action, &snapshot)`
@@ -371,3 +330,8 @@ impl EcoFairnessGuard {
         self.check(action, snapshot)
     }
 }
+
+// --- Shared error type used by callers integrating multiple guardians ---
+
+/// Result type to mirror other guardian crates (neurorights, RoH, eco, etc.).
+pub type EcoFairnessResult = Result<(), GuardError>;
