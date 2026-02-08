@@ -1,0 +1,5 @@
+policy AutoChurch.MoralAccountability {
+  requires: ["no harm to life", "sustainability", "truthful reporting"];
+  prohibits: ["misleading impact declarations", "simulation of deeds"];
+  certifies: ["ethical_true_score", "eco_positive_influence"];
+}
