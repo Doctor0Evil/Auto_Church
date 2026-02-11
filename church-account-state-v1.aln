@@ -1,0 +1,52 @@
+SECTION,CHURCH-ACCOUNT-META
+ROW,meta,schema,scalar,schemaid,church-account-state-v1,string,primarykey,Canonical ChurchAccountState schema ID
+ROW,meta,schema,scalar,version,1.0.0,string,nonnull,Version tag
+ROW,meta,schema,scalar,createdby,bostrom18sd2ujv24ual9c9pshtxys6j8knh6xaead9ye7,string,nonnull,Creator DID
+ROW,meta,schema,scalar,createdat,2026-02-11T00:00:00Z,timestamp,nonnull,Creation time
+ROW,meta,schema,array,juristags,USFDASaMDEUMDRAIACTCHILENEURORIGHTS2023,string,nonnull,Applicable regimes
+ROW,meta,schema,scalar,hexstamp,0xCOF-ACCOUNT-NOACT,string,nonnull,Observer-only invariant tag
+
+SECTION,CHURCH-ACCOUNT-KEYS
+ROW,key,subject,scalar,subjectid,,string,primarykey,Rights-bearing subject ID
+ROW,key,subject,scalar,accountid,,string,nonnull,Logical Church-of-FEAR account ID
+ROW,key,subject,scalar,epochindex,,int,nonnull,Logical epoch index aligned with .donutloop.aln
+ROW,key,subject,scalar,timestamputc,,timestamp,nonnull,UTC time of snapshot
+ROW,key,subject,scalar,donutloopref,,string,nullable,Optional donutloop entry ID for lineage
+
+SECTION,CHURCH-ACCOUNT-STATE
+ROW,state,core,scalar,energy,,float,clamp[0.0,1.0],Normalized energy scalar 0.0–1.0
+ROW,state,core,scalar,stress,,float,clamp[0.0,1.0],Normalized stress scalar 0.0–1.0
+ROW,state,core,scalar,decay,,float,clamp[0.0,1.0],Normalized DECAY scalar 0.0–1.0 non-waivable ceiling
+ROW,state,core,scalar,decayceiling,,float,const:1.0,Hard DECAY ceiling fixed at 1.0 non-waivable
+ROW,state,core,scalar,decaywarnthreshold,,float,derived,Derived from active BiophysicalEnvelopeSpec / NATURE shards
+ROW,state,core,scalar,decayriskthreshold,,float,derived,Derived from active BiophysicalEnvelopeSpec / NATURE shards
+
+SECTION,CHURCH-ACCOUNT-PREDS
+ROW,preds,nature,scalar,calm_stable,,bool,readonly,CALM_STABLE from NATURE layer only
+ROW,preds,nature,scalar,overloaded,,bool,readonly,OVERLOADED from NATURE layer only
+ROW,preds,nature,scalar,recovery,,bool,readonly,RECOVERY from NATURE layer only
+ROW,preds,nature,scalar,unfair_drain,,bool,readonly,UNFAIRDRAIN from NATURE layer only
+
+SECTION,CHURCH-ACCOUNT-VIEWS
+ROW,view,zone,enum,zoneadvisory,SAFE|STRESS|BREACH,string,readonly,Advisory zone derived from NATURE predicates
+ROW,view,zone,scalar,zoneconfidence,,float,clamp[0.0,1.0],Confidence in zone classification
+ROW,view,metrics,scalar,gooddeeddelta_calm,,float,readonly,Change in neighbors CALM_STABLE fraction over window
+ROW,view,metrics,scalar,gooddeeddelta_recovery,,float,readonly,Change in neighbors RECOVERY fraction over window
+ROW,view,metrics,scalar,gooddeeddelta_unfair_drain,,float,readonly,Reduction in neighbors UNFAIRDRAIN fraction over window
+ROW,view,metrics,scalar,gooddeeddelta_overloaded,,float,readonly,Reduction in neighbors OVERLOADED fraction over window
+ROW,view,metrics,scalar,gooddeedscore_advisory,,float,readonly,Advisory-only scalar summarizing the four deltas
+
+SECTION,CHURCH-ACCOUNT-INVARIANTS
+ROW,inv,bounds,condition,energyclamp,0.0 ≤ energy ≤ 1.0,string,readonly,Energy is always clamped to [0,1]
+ROW,inv,bounds,condition,stressclamp,0.0 ≤ stress ≤ 1.0,string,readonly,Stress is always clamped to [0,1]
+ROW,inv,bounds,condition,decayclamp,0.0 ≤ decay ≤ decayceiling,string,readonly,DECAY is always clamped to [0,decayceiling]
+ROW,inv,bounds,condition,decayceilingfixed,decayceiling 1.0,string,readonly,DECAY ceiling is fixed and non-waivable
+ROW,inv,nonactuation,condition,nocapabilitywrite,ChurchAccountState MUST NOT write CapabilityState,string,readonly,No CapabilityState mutation
+ROW,inv,nonactuation,condition,noconsentwrite,ChurchAccountState MUST NOT write ConsentState,string,readonly,No ConsentState mutation
+ROW,inv,nonactuation,condition,nopolicystackwrite,ChurchAccountState MUST NOT write PolicyStack or ReversalPolicy,string,readonly,No policy mutation
+ROW,inv,nonactuation,condition,noenvelopewrite,ChurchAccountState MUST NOT write BiophysicalEnvelopeSpec,string,readonly,No envelope parameter mutation
+ROW,inv,nonactuation,condition,norewardwrite,ChurchAccountState MUST NOT write reward or token fields,string,readonly,No incentive or reward semantics
+ROW,inv,derivation,condition,natureonlymetrics,All predicates and metrics MUST be derived from Tree-of-Life/NATURE views,string,readonly,No independent scoring system
+ROW,inv,derivation,condition,zoneadvisoryonly,zoneadvisory MUST NOT appear as a guard in CapabilityTransitionRequest or ReversalConditions,string,readonly,Zones are advisory only
+
+FOOTER,END-OF-CHURCH-ACCOUNT-STATE-SHARD
