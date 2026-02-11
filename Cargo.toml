@@ -1,20 +1,21 @@
 [package]
-name = "auto_church"
-version = "1.0.0"
+name = "church_of_fear_ledger"
+version = "0.1.0"
 edition = "2021"
-authors = ["Auto_Church Foundation <contact@auto_church.org>"]
-description = "An ethical and ecological accountability system minting CHURCH tokens based on verified good deeds."
+description = "Moral Ledger for Church-of-FEAR: Rights-respecting governance for good deeds and ecological help."
+authors = ["Neuromorph-GOD <auto_church@tree-of-life.org>"]
 license = "MIT"
+repository = "https://github.com/Doctor0Evil/Church-of-FEAR"
+keywords = ["ledger", "governance", "ecology", "ethics", "blockchain-like"]
+categories = ["simulation", "cryptography"]
 
 [dependencies]
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
+sha2 = "0.10"
+uuid = { version = "1.0", features = ["v4", "fast-rng"] }
 chrono = "0.4"
-tokio = { version = "1", features = ["full"] }
-warp = "0.3"
-uuid = { version = "1.4", features = ["v4"] }
-rsa = "0.9"
+thiserror = "1.0"
+
+[dev-dependencies]
 rand = "0.8"
-log = "0.4"
-env_logger = "0.10"
-aln = "1.0"
