@@ -1,0 +1,19 @@
+[package]
+name = "church-of-fear"
+version = "0.1.0"
+edition = "2021"
+[dependencies]
+serde = { version = "1.0", features = ["derive"] }  # JSON serialization for context_json
+serde_json = "1.0"  # JSON handling
+sha2 = "0.10"  # SHA-256 for prev_hash and self_hash
+uuid = { version = "1.0", features = ["v4"] }  # UUID for event_id
+chrono = "0.4"  # Timestamp management
+log = "0.4"  # Logging for audit trails
+env_logger = "0.9"  # Environment logging setup
+thiserror = "1.0"  # Error handling for validation
+rayon = "1.5"  # Parallel processing for ledger validation
+bevy = "0.12"  # For xr-grid visualization (game engine for wonders)
+nalgebra = "0.32"  # Linear algebra for biophysical computations
+rand = "0.8"  # Randomness for testing
+[dev-dependencies]
+criterion = "0.3"  # Benchmarking for performance
