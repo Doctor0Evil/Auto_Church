@@ -1,0 +1,8 @@
+ENVELOPE_ID         = "ECO-2026-PRIMARY"
+BIOLOAD_TARGET      = "NEGATIVE"
+TOKEN_REWARD_FACTOR = 100
+PWR_REPAIR_THRESHOLD = 0.8
+
+RULE ecological_sustainability_reward:
+  IF deed_type == "ecological_sustainability" AND bioload_delta < 0
+  THEN mint_CHURCH
